@@ -19,7 +19,8 @@ spec:
       - key: CriticalAddonsOnly
         operator: Exists
       containers:
-      - image: rocm/k8s-device-plugin
+      - image: roti4wmde/k8s-device-plugin-fake16
+        imagePullPolicy: Always
         name: amdgpu-dp-cntr
         securityContext:
           allowPrivilegeEscalation: false
