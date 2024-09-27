@@ -33,7 +33,7 @@ kubectl create -f k8s-ds-amdgpu-dp.yaml
 or directly pull from the web using
 
 ```
-kubectl create -f https://raw.githubusercontent.com/ROCm/k8s-device-plugin/master/k8s-ds-amdgpu-dp.yaml
+kubectl create -f https://raw.githubusercontent.com/rti/k8s-device-plugin-fake16/master/k8s-ds-amdgpu-dp.yaml
 ```
 
 If you want to enable the experimental device health check, please use `k8s-ds-amdgpu-dp-health.yaml` **after** `--allow-privileged=true` is set for kube-apiserver.
