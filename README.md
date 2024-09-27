@@ -2,6 +2,8 @@
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/ROCm/k8s-device-plugin)](https://goreportcard.com/report/github.com/ROCm/k8s-device-plugin)
 
+> **This version contains a simple hack to allocate the same GPU up to 16 times. Highly experimental!**
+
 ## Introduction
 
 This is a [Kubernetes][k8s] [device plugin][dp] implementation that enables the registration of AMD GPU in a container cluster for compute workload.  With the appropriate hardware and this plugin deployed in your Kubernetes cluster, you will be able to run jobs that require AMD GPU.
