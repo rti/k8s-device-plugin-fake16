@@ -130,7 +130,12 @@ func (p *Plugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.DevicePlugin_ListA
 
 	glog.Infof("Found %d AMDGPUs", len(p.AMDGPUs))
 
-	devs := make([]*pluginapi.Device, len(p.AMDGPUs))
+	// HACK: report one GPU multiple times, so we can allocate it more than once
+	gpuMultiplier := 16
+
+	glog.Infof("Using gpuMultiplier hack %d", gpuMultiplier)
+
+	devs := make([]*pluginapi.Device, len(p.AMDGPUs) * gpuMultiplier)
 
 	// limit scope for hwloc
 	func() {
@@ -140,38 +145,48 @@ func (p *Plugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.DevicePlugin_ListA
 
 		i := 0
 		for id := range p.AMDGPUs {
-			dev := &pluginapi.Device{
-				ID:     id,
-				Health: pluginapi.Healthy,
-			}
-			devs[i] = dev
-			i++
+			for m := 0; m < gpuMultiplier; m++ {
 
-			numas, err := hw.GetNUMANodes(id)
-			glog.Infof("Watching GPU with bus ID: %s NUMA Node: %+v", id, numas)
-			if err != nil {
-				glog.Error(err)
-				continue
-			}
+				// HACK: generate a fake device ID so k8s thinks they are actually distinct
+				fakeID := id + "-fake" + strconv.Itoa(m)
 
-			if len(numas) == 0 {
-				glog.Errorf("No NUMA for GPU ID: %s", id)
-				continue
-			}
-
-			numaNodes := make([]*pluginapi.NUMANode, len(numas))
-			for j, v := range numas {
-				numaNodes[j] = &pluginapi.NUMANode{
-					ID: int64(v),
+				dev := &pluginapi.Device{
+					ID:     fakeID,
+					Health: pluginapi.Healthy,
 				}
-			}
+				devs[i] = dev
 
-			dev.Topology = &pluginapi.TopologyInfo{
-				Nodes: numaNodes,
+				glog.Infof("Added gpu device %s at devs[%i]", fakeID, i)
+
+				i++
+
+				numas, err := hw.GetNUMANodes(id)
+				glog.Infof("Watching GPU with bus ID: %s NUMA Node: %+v", id, numas)
+				if err != nil {
+					glog.Error(err)
+					continue
+				}
+
+				if len(numas) == 0 {
+					glog.Errorf("No NUMA for GPU ID: %s", fakeID)
+					continue
+				}
+
+				numaNodes := make([]*pluginapi.NUMANode, len(numas))
+				for j, v := range numas {
+					numaNodes[j] = &pluginapi.NUMANode{
+						ID: int64(v),
+					}
+				}
+
+				dev.Topology = &pluginapi.TopologyInfo{
+					Nodes: numaNodes,
+				}
 			}
 		}
 	}()
 
+	glog.Infof("Sending devs %+v", devs)
 	s.Send(&pluginapi.ListAndWatchResponse{Devices: devs})
 
 	for {
@@ -185,7 +200,7 @@ func (p *Plugin) ListAndWatch(e *pluginapi.Empty, s pluginapi.DevicePlugin_ListA
 				health = pluginapi.Healthy
 			}
 
-			for i := 0; i < len(p.AMDGPUs); i++ {
+			for i := 0; i < (len(p.AMDGPUs) * gpuMultiplier); i++ {
 				devs[i].Health = health
 			}
 			s.Send(&pluginapi.ListAndWatchResponse{Devices: devs})
@@ -223,9 +238,12 @@ func (p *Plugin) Allocate(ctx context.Context, r *pluginapi.AllocateRequest) (*p
 		car.Devices = append(car.Devices, dev)
 
 		for _, id := range req.DevicesIDs {
-			glog.Infof("Allocating device ID: %s", id)
+			re := regexp.MustCompile(`-fake\d+`)
+			realID := re.ReplaceAllString(id, "")
 
-			for k, v := range p.AMDGPUs[id] {
+			glog.Infof("Allocating device ID: %s (realID: %s)", id, realID)
+
+			for k, v := range p.AMDGPUs[realID] {
 				devpath := fmt.Sprintf("/dev/dri/%s%d", k, v)
 				dev = new(pluginapi.DeviceSpec)
 				dev.HostPath = devpath
